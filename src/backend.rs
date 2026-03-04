@@ -1,24 +1,7 @@
 //! Macroquad ratatui backend
 
-use std::fmt::Display;
 use macroquad::prelude::*;
 use ratatui::buffer::Cell;
-
-#[derive(Debug, Clone)]
-pub enum MacroquadError {
-
-}
-
-// TODO
-impl Display for MacroquadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "?")?;
-
-        Ok(())
-    }
-}
-
-impl std::error::Error for MacroquadError {}
 
 #[derive(Debug)]
 pub struct MacroquadBackend {
@@ -34,7 +17,7 @@ pub struct MacroquadBackend {
 impl MacroquadBackend {
     pub fn new(font: Font, font_size: u16, width_px: u16, height_px: u16) -> Self {
         let dims = measure_text("W", Some(&font), font_size, 1.0);
-        // dbg!(&dims);
+        dbg!(&dims);
 
         let cell_width = dims.width;
         let cell_height = dims.height;
@@ -72,16 +55,14 @@ impl ratatui::backend::Backend for MacroquadBackend {
 
             // Foreground
             if let Some(symbol) = cell.symbol().chars().next() {
-                // let fg = BLACK;
                 let fg = convert_color(cell.fg);
 
                 draw_text_ex(
                     &symbol.to_string(),
-                    px,
-                    py + self.cell_height,
+                    px + 2.,
+                    py + self.cell_height - 2.,
                     TextParams {
                         font: Some(&self.font),
-                        // font_size: 22,
                         font_size: self.cell_height as u16,
                         color: fg,
                         ..Default::default()
@@ -99,6 +80,7 @@ impl ratatui::backend::Backend for MacroquadBackend {
     }
 
     fn show_cursor(&mut self) -> std::io::Result<()> {
+        self.cursor_hidden = false;
         Ok(())
     }
 
@@ -146,47 +128,6 @@ impl ratatui::backend::Backend for MacroquadBackend {
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
-    // fn draw<'a, I>(&mut self, content: I) -> Result<(), Self::Error>
-    //     where
-    //         I: Iterator<Item = (u16, u16, &'a ratatui::buffer::Cell)> {
-    //     todo!()
-    // }
-    //
-    // fn hide_cursor(&mut self) -> Result<(), Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn show_cursor(&mut self) -> Result<(), Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn get_cursor_position(&mut self) -> Result<ratatui::prelude::Position, Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn set_cursor_position<P: Into<ratatui::prelude::Position>>(&mut self, position: P) -> Result<(), Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn clear(&mut self) -> Result<(), Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn clear_region(&mut self, clear_type: ratatui::prelude::backend::ClearType) -> Result<(), Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn size(&self) -> Result<ratatui::prelude::Size, Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn window_size(&mut self) -> Result<ratatui::prelude::backend::WindowSize, Self::Error> {
-    //     todo!()
-    // }
-    //
-    // fn flush(&mut self) -> Result<(), Self::Error> {
-    //     todo!()
-    // }
 }
 
 fn convert_color(color: ratatui::style::Color) -> Color {
@@ -215,11 +156,7 @@ fn convert_color(color: ratatui::style::Color) -> Color {
         Indexed(_) => WHITE, // optionally implement 256 palette
     }
 }
-// impl From<ratatui::prelude::Color> for macroquad::color {
-//     fn from(value: ratatui::prelude::Color) -> Self {
-//         match value {
-//             ratatui::style::Color::Reset
-//         }
-//     }
-// }
 
+// pub fn read_event() -> std::io::Result<()> {
+//     Ok(())
+// }
