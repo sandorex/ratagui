@@ -3,7 +3,17 @@ name = "ratagui"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "ratagui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "example"
+path = "src/main.rs"
+
 [dependencies]
 crossterm = "0.29.0"
-macroquad = "0.4.14"
+eframe = "0.33.3"
+egui = "0.33.3"
+env_logger = "0.11.9"
 ratatui = "0.30"
