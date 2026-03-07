@@ -1,7 +1,7 @@
-use ratatui::{
-    backend::Backend,
+use ratatui_core::{
+    backend::{Backend, WindowSize},
     buffer::Cell,
-    layout::Rect as RatatuiRect,
+    layout::{Position, Rect as RatatuiRect, Size},
 };
 
 /// Ratagui backend, basically just holds the size and cursor info does nothing by itself all the
@@ -30,26 +30,26 @@ impl Backend for DummyBackend {
         Ok(())
     }
 
-    fn get_cursor_position(&mut self) -> std::io::Result<ratatui::layout::Position> {
+    fn get_cursor_position(&mut self) -> std::io::Result<Position> {
         Ok(self.cursor.into())
     }
 
-    fn set_cursor_position<P: Into<ratatui::prelude::Position>>(&mut self, position: P) -> std::io::Result<()> {
-        let position: ratatui::prelude::Position = position.into();
+    fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> std::io::Result<()> {
+        let position: Position = position.into();
         self.cursor = (position.x, position.y);
         Ok(())
     }
 
     fn clear(&mut self) -> std::io::Result<()> { Ok(()) }
-    fn size(&self) -> std::io::Result<ratatui::layout::Size> { Ok(self.size.into()) }
-    fn window_size(&mut self) -> std::io::Result<ratatui::prelude::backend::WindowSize> {
-        Ok(ratatui::backend::WindowSize {
+    fn size(&self) -> std::io::Result<Size> { Ok(self.size.into()) }
+    fn window_size(&mut self) -> std::io::Result<WindowSize> {
+        Ok(WindowSize {
             columns_rows: self.size.into(),
 
             // TODO
             pixels: self.size.into(),
         })
     }
-    fn clear_region(&mut self, _clear_type: ratatui::prelude::backend::ClearType) -> std::io::Result<()> { Ok(()) }
+    fn clear_region(&mut self, _clear_type: ratatui_core::backend::ClearType) -> std::io::Result<()> { Ok(()) }
     fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
 }

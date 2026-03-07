@@ -7,17 +7,18 @@ edition = "2024"
 name = "ratagui"
 path = "src/lib.rs"
 
-[[bin]]
-name = "example"
-path = "src/main.rs"
-
 [features]
-default = [ "departure_mono_nf" ]
-departure_mono_nf = []
+default = ["wayland"]
+wayland = ["eframe/wayland"]
+x11 = ["eframe/x11"]
 
 [dependencies]
 crossterm = "0.29.0"
-eframe = "0.33.3"
-egui = "0.33.3"
-env_logger = "0.11.9"
-ratatui = "0.30"
+ratatui-core = "0.1.0"
+
+# removing accesskit and default_fonts as they arent needed atm
+eframe = { version = "0.33.3", default-features = false, features = ["glow"] }
+egui = { version = "0.33.3", default-features = false }
+
+[dev-dependencies]
+ratatui = "0.30.0"
