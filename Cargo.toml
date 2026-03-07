@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "example"
 path = "src/main.rs"
 
+[features]
+default = [ "departure_mono_nf" ]
+departure_mono_nf = []
+
 [dependencies]
 crossterm = "0.29.0"
 eframe = "0.33.3"
