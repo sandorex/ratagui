@@ -6,15 +6,21 @@ use eframe::egui;
 use ratatui_core::{terminal::Terminal, layout::Rect as RatatuiRect, widgets::StatefulWidget};
 use crate::{backend::DummyBackend, theme::Theme};
 
+/// Trait that allows handling window input
+pub trait RataguiWidget: StatefulWidget + Copy {
+    /// Handle raw egui events
+    fn handle_raw_event(_state: &mut Self::State, _event: &egui::Event) {}
+}
+
 #[derive(Debug)]
-pub struct Ratagui<W: StatefulWidget<State = S>, S> {
+pub struct Ratagui<W: RataguiWidget<State = S>, S> {
     terminal: Terminal<DummyBackend>,
     theme: Theme,
     widget: W,
     state: S,
 }
 
-impl<W: StatefulWidget<State = S>, S> Ratagui<W, S> {
+impl<W: RataguiWidget<State = S>, S> Ratagui<W, S> {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         widget: W,
@@ -54,7 +60,7 @@ impl<W: StatefulWidget<State = S>, S> Ratagui<W, S> {
     }
 }
 
-impl<W: StatefulWidget<State = S> + Copy, S> eframe::App for Ratagui<W, S> {
+impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             // NOTE very important, egui adds weird margin by default
@@ -128,13 +134,20 @@ impl<W: StatefulWidget<State = S> + Copy, S> eframe::App for Ratagui<W, S> {
                 }
             }
 
-            // TODO handle events and pass them to the widget
+            // redirect all events to the widget
+            ui.input(|i| {
+                if !i.events.is_empty() {
+                    for event in &i.events {
+                        W::handle_raw_event(&mut self.state, event);
+                    }
+                }
+            });
         });
     }
 }
 
 /// Start ratagui, it just creates new `Ratagui` instance and starts with `eframe::run_native`
-pub fn start<W: StatefulWidget<State = S> + Copy, S>(
+pub fn start<W: RataguiWidget<State = S>, S>(
     app_name: &str,
     widget: W,
     state: S,
@@ -158,6 +171,6 @@ pub fn start<W: StatefulWidget<State = S> + Copy, S>(
 }
 
 /// Same as `start` but with the least arguments
-pub fn start_simple<W: StatefulWidget<State = S> + Copy, S>(app_name: &str, widget: W, state: S) -> eframe::Result<()> {
+pub fn start_simple<W: RataguiWidget<State = S>, S>(app_name: &str, widget: W, state: S) -> eframe::Result<()> {
     start(app_name, widget, state, Theme::default(), None, None)
 }
