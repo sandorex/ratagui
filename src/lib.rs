@@ -1,6 +1,7 @@
 mod fonts;
 mod theme;
 mod backend;
+mod conversion;
 
 use eframe::egui;
 use ratatui_core::{terminal::Terminal, layout::Rect as RatatuiRect, widgets::StatefulWidget};
@@ -8,8 +9,11 @@ use crate::{backend::DummyBackend, theme::Theme};
 
 /// Trait that allows handling window input
 pub trait RataguiWidget: StatefulWidget + Copy {
-    /// Handle raw egui events
-    fn handle_raw_event(_state: &mut Self::State, _event: &egui::Event) {}
+    /// Handle egui events translated into crossterm events
+    fn handle_event(_state: &mut Self::State, _event: crossterm::event::Event) {}
+
+    /// Handle raw egui events, if true then event wont be passed on to `handle_event`
+    fn handle_raw_event(_state: &mut Self::State, _event: egui::Event) -> bool { false }
 }
 
 #[derive(Debug)]
@@ -138,7 +142,11 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
             ui.input(|i| {
                 if !i.events.is_empty() {
                     for event in &i.events {
-                        W::handle_raw_event(&mut self.state, event);
+                        if !W::handle_raw_event(&mut self.state, event.clone()) {
+                            if let Some(crossterm_event) = conversion::convert_event(event) {
+                                W::handle_event(&mut self.state, crossterm_event);
+                            }
+                        }
                     }
                 }
             });
