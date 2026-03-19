@@ -23,13 +23,28 @@ pub trait RataguiWidget: StatefulWidget + Copy {
 
 #[derive(Debug)]
 pub struct Ratagui<W: RataguiWidget<State = S>, S> {
-    terminal: Terminal<DummyBackend>,
-    theme: Theme,
-    widget: W,
+    /// Theme for the "terminal"
+    pub theme: Theme,
+
+    /// Widget state
     pub state: S,
+
+    /// Ratatui terminal instance
+    terminal: Terminal<DummyBackend>,
+
+    /// The widget itself
+    widget: W,
+
+    /// Has the font or font size changed, recalculates cell size
     font_changed: bool,
+
+    /// Current font size
     font_size: f32,
+
+    /// Size of each cell in the "terminal"
     cell_size: egui::Vec2,
+
+    /// Has quit been requested
     quit_requested: bool,
 }
 
@@ -192,7 +207,13 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
             ui.input(|i| {
                 for event in &i.events {
                     if !W::handle_raw_event(self, event.clone()) {
-                        match conversion::convert_event(event, &i.modifiers, available_size, (rows, cols)) {
+                        match conversion::convert_event(
+                            event,
+                            &i.modifiers,
+                            available_size,
+                            (padding_x, padding_y).into(),
+                            self.cell_size,
+                        ) {
                             Some(crossterm_event) => W::handle_event(self, crossterm_event),
                             _ => {},
                         }

@@ -1,8 +1,10 @@
 //! Contains code to convert between egui and ratatui/crossterm types
 #![allow(unused)]
 
+use egui::Vec2;
+
 mod gui {
-    pub use egui::{Modifiers, Key, Event};
+    pub use egui::{Modifiers, Key, Event, PointerButton};
 }
 
 mod tui {
@@ -13,8 +15,9 @@ mod tui {
 pub fn convert_event(
     event: &gui::Event,
     global_modifiers: &gui::Modifiers,
-    size: egui::Vec2,
-    term_size: (u16, u16),
+    size: Vec2,
+    padding: Vec2,
+    cell_size: Vec2,
 ) -> Option<tui::Event> {
     match event {
         gui::Event::Key { key, physical_key, pressed, repeat, modifiers } => {
@@ -61,22 +64,87 @@ pub fn convert_event(
 
         gui::Event::Paste(x) => Some(tui::Event::Paste(x.clone())),
 
-        // TODO use size and term_size to calculate where mouse events happened
-        // // TODO map to the cells??
-        // gui::Event::PointerMoved(pos) => Some(tui::Event::Mouse(tui::MouseEvent {
-        //     kind: tui::MouseEventKind::Moved,
-        //     row: 0,
-        //     column: 0,
-        //     modifiers: tui::KeyModifiers::NONE,
-        // })),
+        gui::Event::MouseWheel { delta, modifiers, .. } => {
+            let kind = match *delta {
+                Vec2::UP => tui::MouseEventKind::ScrollUp,
+                Vec2::DOWN => tui::MouseEventKind::ScrollDown,
+                Vec2::LEFT => tui::MouseEventKind::ScrollLeft,
+                Vec2::RIGHT => tui::MouseEventKind::ScrollRight,
+                _ => panic!("Invalid mousewheel delta {delta:?}"),
+            };
+
+            Some(tui::Event::Mouse(tui::MouseEvent {
+                kind,
+                column: 1,
+                row: 1,
+                modifiers: convert_modifiers(modifiers),
+            }))
+        },
+
+        // TODO can i even implement Drag event without refactoring?
+        gui::Event::PointerButton { pos, button, pressed, modifiers } => {
+            let Some(kind) = convert_mouse_event(button, *pressed) else {
+                return None;
+            };
+
+            let pos = get_cell_at_pos(padding, size, cell_size, pos.to_vec2());
+
+            Some(tui::Event::Mouse(tui::MouseEvent {
+                kind,
+                column: pos.0,
+                row: pos.1,
+                modifiers: convert_modifiers(modifiers),
+            }))
+        },
+
+        gui::Event::PointerMoved(pos) => {
+            let pos = get_cell_at_pos(padding, size, cell_size, pos.to_vec2());
+
+            Some(tui::Event::Mouse(tui::MouseEvent {
+                kind: tui::MouseEventKind::Moved,
+                column: pos.0,
+                row: pos.1,
+                modifiers: tui::KeyModifiers::NONE,
+            }))
+        },
 
         gui::Event::WindowFocused(focused) => Some(if *focused {
             tui::Event::FocusGained
         } else {
             tui::Event::FocusLost
         }),
+
         _ => None
     }
+}
+
+pub fn get_cell_at_pos(padding: Vec2, size: Vec2, cell_size: Vec2, position: Vec2) -> (u16, u16) {
+    let relative_pos = position - padding;
+
+    let x = (relative_pos.x / cell_size.x).floor().max(0.0) as u32;
+    let y = (relative_pos.y / cell_size.y).floor().max(0.0) as u32;
+
+    (
+        x.try_into().expect("Cell x position outside of u16 range"),
+        y.try_into().expect("Cell y position outside of u16 range")
+    )
+}
+
+pub fn convert_mouse_event(button: &gui::PointerButton, pressed: bool) -> Option<tui::MouseEventKind> {
+    let crossterm_button = match button {
+        gui::PointerButton::Primary => tui::MouseButton::Left,
+        gui::PointerButton::Secondary => tui::MouseButton::Right,
+        gui::PointerButton::Middle => tui::MouseButton::Right,
+
+        // crossterm does not know about forward / back buttons on a mouse
+        _ => return None,
+    };
+
+    Some(if pressed {
+        tui::MouseEventKind::Down(crossterm_button)
+    } else {
+        tui::MouseEventKind::Up(crossterm_button)
+    })
 }
 
 pub fn convert_key_event(key: &gui::Key, pressed: bool, repeat: bool, modifiers: &gui::Modifiers) -> Option<tui::KeyEvent> {
