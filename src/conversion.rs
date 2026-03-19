@@ -10,14 +10,58 @@ mod tui {
 }
 
 /// Tries to convert `egui::Event` into `crossterm::event::Event`
-pub fn convert_event(event: &gui::Event) -> Option<tui::Event> {
+pub fn convert_event(
+    event: &gui::Event,
+    global_modifiers: &gui::Modifiers,
+    size: egui::Vec2,
+    term_size: (u16, u16),
+) -> Option<tui::Event> {
     match event {
-        gui::Event::Key { key, pressed, repeat, modifiers, .. } => {
-            convert_key_event(key, *pressed, *repeat, modifiers).map(|x| tui::Event::Key(x))
+        gui::Event::Key { key, physical_key, pressed, repeat, modifiers } => {
+            match physical_key.unwrap_or(*key) {
+                // NOTE space is handled in text event!
+                gui::Key::Escape |
+                gui::Key::Tab |
+                gui::Key::Delete |
+                gui::Key::Insert |
+                gui::Key::Home |
+                gui::Key::PageUp |
+                gui::Key::PageDown |
+                gui::Key::Enter |
+                gui::Key::Backspace |
+                gui::Key::ArrowUp |
+                gui::Key::ArrowDown |
+                gui::Key::ArrowLeft |
+                gui::Key::ArrowRight |
+                gui::Key::F1 |
+                gui::Key::F2 |
+                gui::Key::F3 |
+                gui::Key::F4 |
+                gui::Key::F5 |
+                gui::Key::F6 |
+                gui::Key::F7 |
+                gui::Key::F8 |
+                gui::Key::F9 |
+                gui::Key::F10 |
+                gui::Key::F11 |
+                gui::Key::F12 => convert_key_event(key, *pressed, *repeat, modifiers).map(|x| tui::Event::Key(x)),
+
+                _ => None,
+            }
         },
-        // gui::Event::Text(x) // TODO how do i map this?
+
+        gui::Event::Text(x) => {
+            Some(tui::Event::Key(tui::KeyEvent {
+                code: tui::KeyCode::Char(x.chars().next().unwrap()),
+                modifiers: convert_modifiers(global_modifiers),
+                kind: tui::KeyEventKind::Press,
+                state: tui::KeyEventState::NONE,
+            }))
+        },
+
         gui::Event::Paste(x) => Some(tui::Event::Paste(x.clone())),
 
+        // TODO use size and term_size to calculate where mouse events happened
         // // TODO map to the cells??
         // gui::Event::PointerMoved(pos) => Some(tui::Event::Mouse(tui::MouseEvent {
         //     kind: tui::MouseEventKind::Moved,
@@ -26,7 +70,11 @@ pub fn convert_event(event: &gui::Event) -> Option<tui::Event> {
         //     modifiers: tui::KeyModifiers::NONE,
         // })),
 
-        gui::Event::WindowFocused(focused) => Some(if *focused { tui::Event::FocusGained } else { tui::Event::FocusLost }),
+        gui::Event::WindowFocused(focused) => Some(if *focused {
+            tui::Event::FocusGained
+        } else {
+            tui::Event::FocusLost
+        }),
         _ => None
     }
 }
@@ -90,59 +138,6 @@ pub fn convert_key(key: &gui::Key) -> Option<tui::KeyCode> {
         Key::F11 => Some(KeyCode::F(11)),
         Key::F12 => Some(KeyCode::F(12)),
 
-        Key::Num0 => Some(KeyCode::Char('0')),
-        Key::Num1 => Some(KeyCode::Char('1')),
-        Key::Num2 => Some(KeyCode::Char('2')),
-        Key::Num3 => Some(KeyCode::Char('3')),
-        Key::Num4 => Some(KeyCode::Char('4')),
-        Key::Num5 => Some(KeyCode::Char('5')),
-        Key::Num6 => Some(KeyCode::Char('6')),
-        Key::Num7 => Some(KeyCode::Char('7')),
-        Key::Num8 => Some(KeyCode::Char('8')),
-        Key::Num9 => Some(KeyCode::Char('9')),
-
-        Key::A => Some(KeyCode::Char('a')),
-        Key::B => Some(KeyCode::Char('b')),
-        Key::C => Some(KeyCode::Char('c')),
-        Key::D => Some(KeyCode::Char('d')),
-        Key::E => Some(KeyCode::Char('e')),
-        Key::F => Some(KeyCode::Char('f')),
-        Key::G => Some(KeyCode::Char('g')),
-        Key::H => Some(KeyCode::Char('h')),
-        Key::I => Some(KeyCode::Char('i')),
-        Key::J => Some(KeyCode::Char('j')),
-        Key::K => Some(KeyCode::Char('k')),
-        Key::L => Some(KeyCode::Char('l')),
-        Key::M => Some(KeyCode::Char('m')),
-        Key::N => Some(KeyCode::Char('n')),
-        Key::O => Some(KeyCode::Char('o')),
-        Key::P => Some(KeyCode::Char('p')),
-        Key::Q => Some(KeyCode::Char('q')),
-        Key::R => Some(KeyCode::Char('r')),
-        Key::S => Some(KeyCode::Char('s')),
-        Key::T => Some(KeyCode::Char('t')),
-        Key::U => Some(KeyCode::Char('u')),
-        Key::V => Some(KeyCode::Char('v')),
-        Key::W => Some(KeyCode::Char('w')),
-        Key::X => Some(KeyCode::Char('x')),
-        Key::Y => Some(KeyCode::Char('y')),
-        Key::Z => Some(KeyCode::Char('z')),
-
-        Key::Comma => Some(KeyCode::Char(',')),
-        Key::Period => Some(KeyCode::Char('.')),
-        Key::Colon => Some(KeyCode::Char(':')),
-        Key::Semicolon => Some(KeyCode::Char(';')),
-        Key::Questionmark => Some(KeyCode::Char('?')),
-        Key::Plus => Some(KeyCode::Char('+')),
-        Key::Minus => Some(KeyCode::Char('-')),
-        Key::Slash => Some(KeyCode::Char('/')),
-        Key::Backslash => Some(KeyCode::Char('\\')),
-        Key::Equals => Some(KeyCode::Char('=')),
-        Key::OpenBracket => Some(KeyCode::Char('[')),
-        Key::CloseBracket => Some(KeyCode::Char(']')),
-        Key::Backtick => Some(KeyCode::Char('`')),
-        Key::Quote => Some(KeyCode::Char('\'')),
-
         _ => None,
     }
 }
@@ -151,17 +146,9 @@ pub fn convert_key(key: &gui::Key) -> Option<tui::KeyCode> {
 pub fn convert_modifiers(modifiers: &gui::Modifiers) -> tui::KeyModifiers {
     let mut result = tui::KeyModifiers::empty();
 
-    if modifiers.ctrl || modifiers.command {
-        result.set(tui::KeyModifiers::CONTROL, true);
-    }
-
-    if modifiers.alt {
-        result.set(tui::KeyModifiers::ALT, true);
-    }
-
-    if modifiers.shift {
-        result.set(tui::KeyModifiers::SHIFT, true);
-    }
+    result.set(tui::KeyModifiers::CONTROL, modifiers.ctrl || modifiers.command);
+    result.set(tui::KeyModifiers::ALT, modifiers.alt);
+    result.set(tui::KeyModifiers::SHIFT, modifiers.shift);
 
     result
 }

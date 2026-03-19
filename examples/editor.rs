@@ -1,30 +1,80 @@
+//! Example using edtui editor as the sole widget
+//!
+//! You are editing the actual source code of the application
+
 use edtui::{EditorState, EditorEventHandler, EditorTheme, EditorView};
 use ratatui::widgets::Widget;
 
-#[derive(Copy, Clone)]
-struct EditorWidget;
+#[derive(Clone)]
+struct EditorWidgetState {
+    state: EditorState,
+    event_handler: EditorEventHandler,
+}
 
-// TODO symbols just arent passed through?
-impl ratagui::RataguiWidget for EditorWidget {
-    fn handle_event(state: &mut Self::State, event: crossterm::event::Event) {
-        let mut event_handler = EditorEventHandler::default();
-        match event {
-            crossterm::event::Event::Key(x) => if x.is_press() || x.is_repeat() {
-                event_handler.on_key_event(x, state)
-            },
-            _ => {}
+impl EditorWidgetState {
+    pub fn new() -> Self {
+        Self {
+            // for example just include this file itself
+            state: EditorState::new(edtui::Lines::from(include_str!("editor.rs"))),
+            event_handler: EditorEventHandler::vim_mode(),
         }
     }
 }
 
+#[derive(Copy, Clone)]
+struct EditorWidget;
+
+impl ratagui::RataguiWidget for EditorWidget {
+    fn handle_event(ratagui: &mut ratagui::Ratagui<Self, Self::State>, event: crossterm::event::Event)
+        where <Self as ratatui::prelude::StatefulWidget>::State: Sized,
+    {
+        match event {
+            crossterm::event::Event::Key(x) => match x.code {
+                // close on escape
+                crossterm::event::KeyCode::Esc => {
+                    ratagui.close();
+                    return;
+                },
+
+                // resize font with F1 and F2
+                crossterm::event::KeyCode::F(f) => {
+                    if x.is_release() || x.is_repeat() {
+                        if f == 1 {
+                            ratagui.incr_font_size(-0.01);
+                        } else if f == 2 {
+                            ratagui.incr_font_size(0.01);
+                        }
+                    }
+
+                    // NOTE edtui crashes if it receives function keys
+                    return;
+                },
+                _ => {},
+            },
+            _ => {},
+        }
+
+        // duplicates the key presses
+        if event.is_key_release() {
+            return;
+        }
+
+        ratagui.state.event_handler.on_event(event, &mut ratagui.state.state);
+    }
+}
+
 impl ratatui::widgets::StatefulWidget for EditorWidget {
-    type State = EditorState;
+    type State = EditorWidgetState;
 
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer, state: &mut Self::State) {
-        EditorView::new(state)
+        let syntax_highlighter = edtui::SyntaxHighlighter::new("monokai", "rs")
+            .expect("Could not load syntax highlighter");
+
+        EditorView::new(&mut state.state)
             .theme(EditorTheme::default())
+            .syntax_highlighter(Some(syntax_highlighter))
+            .line_numbers(edtui::LineNumbers::Absolute)
             .wrap(true)
-            .syntax_highlighter(None)
             .tab_width(2)
             .render(area, buf);
     }
@@ -32,9 +82,9 @@ impl ratatui::widgets::StatefulWidget for EditorWidget {
 
 fn main() -> eframe::Result<()> {
     ratagui::start_simple(
-        "Ratagui Editor Demo",
+        "Ratagui Edtui Demo",
         EditorWidget,
-        EditorState::default(),
+        EditorWidgetState::new(),
     )?;
 
     Ok(())
