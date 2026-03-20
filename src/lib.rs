@@ -7,33 +7,10 @@ use eframe::egui;
 use ratatui_core::{terminal::Terminal, layout::Rect as RatatuiRect, widgets::StatefulWidget};
 use crate::{backend::DummyBackend, theme::Theme};
 
-/// Trait that allows handling window input
-#[allow(unused)]
-pub trait RataguiWidget: StatefulWidget + Copy {
-    /// Handle egui events translated into crossterm events
-    fn handle_event(ratagui: &mut Ratagui<Self, Self::State>, event: crossterm::event::Event)
-        where <Self as StatefulWidget>::State: Sized,
-    {}
-
-    /// Handle raw egui events, if true then event wont be passed on to `handle_event`
-    fn handle_raw_event(ratagui: &mut Ratagui<Self, Self::State>, event: egui::Event) -> bool
-        where <Self as StatefulWidget>::State: Sized,
-    { false }
-}
-
-#[derive(Debug)]
-pub struct Ratagui<W: RataguiWidget<State = S>, S> {
+#[derive(Debug, Clone, Default)]
+pub struct Context {
     /// Theme for the "terminal"
     pub theme: Theme,
-
-    /// Widget state
-    pub state: S,
-
-    /// Ratatui terminal instance
-    terminal: Terminal<DummyBackend>,
-
-    /// The widget itself
-    widget: W,
 
     /// Has the font or font size changed, recalculates cell size
     font_changed: bool,
@@ -41,11 +18,53 @@ pub struct Ratagui<W: RataguiWidget<State = S>, S> {
     /// Current font size
     font_size: f32,
 
+    /// Has quit been requested
+    quit_requested: bool,
+}
+
+impl Context {
+    /// Change font size for the next frame
+    pub fn set_font_size(&mut self, font_size: f32) {
+        self.font_size = font_size.clamp(0.01, 10.0);
+        self.font_changed = true;
+    }
+
+    /// Increment/decremet font size
+    pub fn incr_font_size(&mut self, font_size: f32) {
+        self.set_font_size(self.font_size + font_size)
+    }
+
+    /// Request closing of the application
+    pub fn close(&mut self) {
+        self.quit_requested = true;
+    }
+}
+
+/// Trait that allows handling window input
+#[allow(unused)]
+pub trait RataguiWidget: StatefulWidget + Copy {
+    /// Handle egui events translated into crossterm events
+    fn handle_event(ctx: &mut Context, state: &mut Self::State, event: crossterm::event::Event) {}
+
+    /// Handle raw egui events, if true then event wont be passed on to `handle_event`
+    fn handle_raw_event(ctx: &mut Context, state: &mut Self::State, event: egui::Event) -> bool { false }
+}
+
+#[derive(Debug)]
+pub struct Ratagui<W: RataguiWidget<State = S>, S> {
+    /// Widget state
+    state: S,
+
+    /// Ratatui terminal instance
+    terminal: Terminal<DummyBackend>,
+
+    /// The widget itself
+    widget: W,
+
     /// Size of each cell in the "terminal"
     cell_size: egui::Vec2,
 
-    /// Has quit been requested
-    quit_requested: bool,
+    context: Context,
 }
 
 impl<W: RataguiWidget<State = S>, S> Ratagui<W, S> {
@@ -85,54 +104,40 @@ impl<W: RataguiWidget<State = S>, S> Ratagui<W, S> {
 
         Self {
             terminal,
-            theme,
             widget,
             state,
-            font_changed: true,
-            font_size,
             cell_size: egui::Vec2::ZERO,
-            quit_requested: false,
+            context: Context {
+                theme,
+                font_size,
+                font_changed: true,
+                quit_requested: false,
+            },
         }
-    }
-
-    /// Change font size for the next frame
-    pub fn set_font_size(&mut self, font_size: f32) {
-        self.font_size = font_size.clamp(0.01, 10.0);
-        self.font_changed = true;
-    }
-
-    /// Increment/decremet font size
-    pub fn incr_font_size(&mut self, font_size: f32) {
-        self.set_font_size(self.font_size + font_size)
-    }
-
-    /// Request closing of the application
-    pub fn close(&mut self) {
-        self.quit_requested = true;
     }
 }
 
 impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.quit_requested {
-            self.quit_requested = false;
+        if self.context.quit_requested {
+            self.context.quit_requested = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
 
         egui::CentralPanel::default()
-            // NOTE very important, egui adds weird margin by default
+            // egui adds weird margin by default
             .frame(egui::Frame::NONE.inner_margin(0.0))
             .show(ctx, |ui| {
 
             let font_id = egui::TextStyle::Monospace.resolve(ui.style());
 
             // update font stuff
-            if self.font_changed {
+            if self.context.font_changed {
                 // update finished
-                self.font_changed = false;
+                self.context.font_changed = false;
 
                 // set egui font size
-                ctx.set_pixels_per_point(self.font_size);
+                ctx.set_pixels_per_point(self.context.font_size);
 
                 self.cell_size = ctx.fonts_mut(|f| egui::vec2(
                     f.glyph_width(&font_id, 'M'),
@@ -168,7 +173,7 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
                     max: egui::Pos2 { x: available_size.x, y: available_size.y }
                 },
                 0.0,
-                self.theme.background,
+                self.context.theme.background,
             );
 
             // TODO draw cursor if not hidden
@@ -187,7 +192,7 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
                     painter.rect_filled(
                         egui::Rect::from_min_size(pos, self.cell_size),
                         0.0,
-                        self.theme.map_color(cell.bg).unwrap_or(self.theme.background),
+                        self.context.theme.map_color(cell.bg).unwrap_or(self.context.theme.background),
                     );
 
                     // draw text
@@ -197,7 +202,7 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
                             egui::Align2::LEFT_TOP,
                             cell.symbol(),
                             font_id.clone(),
-                            self.theme.map_color(cell.fg).unwrap_or(self.theme.foreground),
+                            self.context.theme.map_color(cell.fg).unwrap_or(self.context.theme.foreground),
                         );
                     }
                 }
@@ -206,7 +211,7 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
             // redirect all events to the widget
             ui.input(|i| {
                 for event in &i.events {
-                    if !W::handle_raw_event(self, event.clone()) {
+                    if !W::handle_raw_event(&mut self.context, &mut self.state, event.clone()) {
                         match conversion::convert_event(
                             event,
                             &i.modifiers,
@@ -214,7 +219,7 @@ impl<W: RataguiWidget<State = S>, S> eframe::App for Ratagui<W, S> {
                             (padding_x, padding_y).into(),
                             self.cell_size,
                         ) {
-                            Some(crossterm_event) => W::handle_event(self, crossterm_event),
+                            Some(crossterm_event) => W::handle_event(&mut self.context, &mut self.state, crossterm_event),
                             _ => {},
                         }
                     }

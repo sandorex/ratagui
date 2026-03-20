@@ -7,7 +7,7 @@ use ratatui::widgets::Widget;
 
 #[derive(Clone)]
 struct EditorWidgetState {
-    state: EditorState,
+    editor_state: EditorState,
     event_handler: EditorEventHandler,
 }
 
@@ -15,7 +15,7 @@ impl EditorWidgetState {
     pub fn new() -> Self {
         Self {
             // for example just include this file itself
-            state: EditorState::new(edtui::Lines::from(include_str!("editor.rs"))),
+            editor_state: EditorState::new(edtui::Lines::from(include_str!("editor.rs"))),
             event_handler: EditorEventHandler::vim_mode(),
         }
     }
@@ -25,24 +25,16 @@ impl EditorWidgetState {
 struct EditorWidget;
 
 impl ratagui::RataguiWidget for EditorWidget {
-    fn handle_event(ratagui: &mut ratagui::Ratagui<Self, Self::State>, event: crossterm::event::Event)
-        where <Self as ratatui::prelude::StatefulWidget>::State: Sized,
-    {
+    fn handle_event(ctx: &mut ratagui::Context, state: &mut Self::State, event: crossterm::event::Event) {
         match event {
             crossterm::event::Event::Key(x) => match x.code {
-                // close on escape
-                crossterm::event::KeyCode::Esc => {
-                    ratagui.close();
-                    return;
-                },
-
                 // resize font with F1 and F2
                 crossterm::event::KeyCode::F(f) => {
                     if x.is_release() || x.is_repeat() {
                         if f == 1 {
-                            ratagui.incr_font_size(-0.01);
+                            ctx.incr_font_size(-0.01);
                         } else if f == 2 {
-                            ratagui.incr_font_size(0.01);
+                            ctx.incr_font_size(0.01);
                         }
                     }
 
@@ -59,7 +51,7 @@ impl ratagui::RataguiWidget for EditorWidget {
             return;
         }
 
-        ratagui.state.event_handler.on_event(event, &mut ratagui.state.state);
+        state.event_handler.on_event(event, &mut state.editor_state);
     }
 }
 
@@ -70,7 +62,7 @@ impl ratatui::widgets::StatefulWidget for EditorWidget {
         let syntax_highlighter = edtui::SyntaxHighlighter::new("monokai", "rs")
             .expect("Could not load syntax highlighter");
 
-        EditorView::new(&mut state.state)
+        EditorView::new(&mut state.editor_state)
             .theme(EditorTheme::default())
             .syntax_highlighter(Some(syntax_highlighter))
             .line_numbers(edtui::LineNumbers::Absolute)

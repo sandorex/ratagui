@@ -6,11 +6,9 @@ use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 struct DummyWidget;
 
 impl ratagui::RataguiWidget for DummyWidget {
-    fn handle_event(ratagui: &mut ratagui::Ratagui<Self, Self::State>, event: crossterm::event::Event)
-        where <Self as ratatui::prelude::StatefulWidget>::State: Sized,
-    {
+    fn handle_event(ctx: &mut ratagui::Context, _state: &mut Self::State, event: crossterm::event::Event) {
         if event.is_key() {
-            ratagui.close()
+            ctx.close()
         }
     }
 }
@@ -18,7 +16,12 @@ impl ratagui::RataguiWidget for DummyWidget {
 impl ratatui::widgets::StatefulWidget for DummyWidget {
     type State = ();
 
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer, _state: &mut Self::State) {
+    fn render(
+        self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        _state: &mut Self::State
+    ) {
         let block = Block::default()
             .title(" Ratagui Demo ")
             .borders(Borders::ALL);
